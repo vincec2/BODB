@@ -137,6 +137,20 @@ export type CreateExpenseInput = {
   notes?: string;
 };
 
+export type ExpenseImportRow = {
+  description: string;
+  category: ExpenseCategory;
+  amount: number;
+  vendor?: string;
+  expenseDate?: string;
+  notes?: string;
+};
+
+export type ExpenseImportResult = {
+  importedCount: number;
+  expenses: Expense[];
+};
+
 export type CustomerIssueType =
   | "SHIPPING_DELAY"
   | "WRONG_ITEM"
@@ -372,6 +386,36 @@ export async function createExpense(
 
   return response.json();
 } 
+
+export async function importExpenses(
+  expenses: ExpenseImportRow[]
+): Promise<ExpenseImportResult> {
+  const response = await fetch("/api/expenses/import", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ expenses })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+
+    if (errorBody?.rowErrors) {
+      const rowErrorText = errorBody.rowErrors
+        .map((rowError: { rowNumber: number; errors: string[] }) => {
+          return `Row ${rowError.rowNumber}: ${rowError.errors.join(", ")}`;
+        })
+        .join("\n");
+
+      throw new Error(rowErrorText);
+    }
+
+    throw new Error(errorBody?.message ?? "Failed to import expenses");
+  }
+
+  return response.json();
+}
 
 export async function getCustomerIssues(): Promise<CustomerIssue[]> {
   const response = await fetch("/api/customer-issues");

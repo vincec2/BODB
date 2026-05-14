@@ -428,3 +428,60 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+.overview-filter-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 32px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.overview-filter-card h3 {
+  margin: 0;
+}
+
+.overview-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.overview-filter-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #e2e8f0;
+  color: #172033;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.overview-filter-button.active {
+  background: #172033;
+  color: #ffffff;
+}
+
+.business-insights-section {
+  margin-top: 32px;
+}
+
+.insight-card strong {
+  color: #172033;
+}
+
+@media (max-width: 760px) {
+  .overview-filter-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .overview-filter-buttons {
+    flex-direction: column;
+  }
+}

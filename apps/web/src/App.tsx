@@ -1,43 +1,80 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { BusinessInsights } from "./components/BusinessInsights";
 import { CustomerIssueForm } from "./components/CustomerIssueForm";
 import { CustomerIssuesTable } from "./components/CustomerIssuesTable";
 import { DashboardSummary } from "./components/DashboardSummary";
+import { ExpenseCsvImport } from "./components/ExpenseCsvImport";
 import { ExpenseForm } from "./components/ExpenseForm";
 import { ExpensesTable } from "./components/ExpensesTable";
 import { NeedsAttention } from "./components/NeedsAttention";
 import { OrderForm } from "./components/OrderForm";
 import { OrdersTable } from "./components/OrdersTable";
+import {
+  getOverviewRangeLabel,
+  OverviewTimeFilter,
+  type OverviewTimeRange
+} from "./components/OverviewTimeFilter";
+import { ProductCsvImport } from "./components/ProductCsvImport";
 import { ProductForm } from "./components/ProductForm";
 import { ProductsTable } from "./components/ProductsTable";
-import { ProductCsvImport } from "./components/ProductCsvImport";
-import {
-  SectionNav,
-  type AppSection
-} from "./components/SectionNav";
+import { SectionNav, type AppSection } from "./components/SectionNav";
 import { SupplierForm } from "./components/SupplierForm";
 import { SuppliersTable } from "./components/SuppliersTable";
 import {
   getCustomerIssues,
-  updateCustomerIssueStatus,
   getExpenses,
   getHealth,
   getOrders,
-  updateOrderStatus,
   getProducts,
   getSuppliers,
+  updateCustomerIssueStatus,
+  updateOrderStatus,
   type CustomerIssue,
   type CustomerIssueStatus,
   type Expense,
   type HealthResponse,
+  type OrderStatus,
   type Product,
   type SalesOrder,
-  type OrderStatus,
   type Supplier
 } from "./lib/api";
 import "./App.css";
 
+function isWithinRange(dateValue: string, range: OverviewTimeRange) {
+  if (range === "all") {
+    return true;
+  }
+
+  const itemDate = new Date(dateValue);
+  const today = new Date();
+
+  if (Number.isNaN(itemDate.getTime())) {
+    return false;
+  }
+
+  if (range === "last7") {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(today.getDate() - 7);
+
+    return itemDate >= sevenDaysAgo;
+  }
+
+  if (range === "last30") {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+
+    return itemDate >= thirtyDaysAgo;
+  }
+
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  return itemDate >= firstDayOfMonth;
+}
+
 function App() {
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
+  const [overviewRange, setOverviewRange] =
+    useState<OverviewTimeRange>("all");
 
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,6 +83,24 @@ function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customerIssues, setCustomerIssues] = useState<CustomerIssue[]>([]);
   const [error, setError] = useState<string>("");
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      return isWithinRange(order.orderDate, overviewRange);
+    });
+  }, [orders, overviewRange]);
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      return isWithinRange(expense.expenseDate, overviewRange);
+    });
+  }, [expenses, overviewRange]);
+
+  const filteredCustomerIssues = useMemo(() => {
+    return customerIssues.filter((issue) => {
+      return isWithinRange(issue.createdAt, overviewRange);
+    });
+  }, [customerIssues, overviewRange]);
 
   async function loadProducts() {
     const productData = await getProducts();
@@ -118,19 +173,34 @@ function App() {
 
   function renderActiveSection() {
     if (activeSection === "overview") {
+      const rangeLabel = getOverviewRangeLabel(overviewRange);
+
       return (
         <>
+          <OverviewTimeFilter
+            activeRange={overviewRange}
+            onRangeChange={setOverviewRange}
+          />
+
           <DashboardSummary
-            orders={orders}
+            orders={filteredOrders}
             products={products}
-            expenses={expenses}
+            expenses={filteredExpenses}
           />
 
           <NeedsAttention
-            orders={orders}
+            orders={filteredOrders}
             products={products}
-            expenses={expenses}
-            customerIssues={customerIssues}
+            expenses={filteredExpenses}
+            customerIssues={filteredCustomerIssues}
+          />
+
+          <BusinessInsights
+            orders={filteredOrders}
+            expenses={filteredExpenses}
+            customerIssues={filteredCustomerIssues}
+            products={products}
+            rangeLabel={rangeLabel}
           />
         </>
       );
@@ -212,6 +282,8 @@ function App() {
             <span>{expenses.length} expenses</span>
           </div>
 
+          <ExpenseCsvImport onExpensesImported={loadBusinessData} />
+
           <ExpenseForm onExpenseCreated={loadBusinessData} />
 
           <ExpensesTable expenses={expenses} hasError={Boolean(error)} />
@@ -230,6 +302,7 @@ function App() {
         </div>
 
         <ProductCsvImport onProductsImported={loadBusinessData} />
+
         <ProductForm
           suppliers={suppliers}
           onProductCreated={loadBusinessData}
