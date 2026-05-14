@@ -224,6 +224,50 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
   return response.json();
 }
 
+export async function importProducts(
+  products: ProductImportRow[]
+): Promise<ProductImportResult> {
+  const response = await fetch("/api/products/import", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ products })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+
+    if (errorBody?.rowErrors) {
+      const rowErrorText = errorBody.rowErrors
+        .map((rowError: { rowNumber: number; sku?: string; errors: string[] }) => {
+          const skuText = rowError.sku ? `, SKU ${rowError.sku}` : "";
+          return `Row ${rowError.rowNumber}${skuText}: ${rowError.errors.join(", ")}`;
+        })
+        .join("\n");
+
+      throw new Error(rowErrorText);
+    }
+
+    throw new Error(errorBody?.message ?? "Failed to import products");
+  }
+
+  return response.json();
+}
+
+export type ProductImportRow = {
+  name: string;
+  sku: string;
+  category?: string;
+  sellingPrice: number;
+  supplierCost?: number;
+};
+
+export type ProductImportResult = {
+  importedCount: number;
+  products: Product[];
+};
+
 export async function getSuppliers(): Promise<Supplier[]> {
   const response = await fetch("/api/suppliers");
 

@@ -9,6 +9,7 @@ import { OrderForm } from "./components/OrderForm";
 import { OrdersTable } from "./components/OrdersTable";
 import { ProductForm } from "./components/ProductForm";
 import { ProductsTable } from "./components/ProductsTable";
+import { ProductCsvImport } from "./components/ProductCsvImport";
 import {
   SectionNav,
   type AppSection
@@ -228,6 +229,7 @@ function App() {
           <span>{products.length} products</span>
         </div>
 
+        <ProductCsvImport onProductsImported={loadBusinessData} />
         <ProductForm
           suppliers={suppliers}
           onProductCreated={loadBusinessData}
