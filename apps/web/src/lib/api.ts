@@ -1,0 +1,381 @@
+export type HealthResponse = {
+  status: string;
+  service: string;
+};
+
+export type Supplier = {
+  id: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count: {
+    products: number;
+  };
+};
+
+export type Product = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string | null;
+  sellingPrice: string;
+  supplierCost: string | null;
+  supplierId: string | null;
+  supplier: {
+    id: string;
+    name: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateProductInput = {
+  name: string;
+  sku: string;
+  category?: string;
+  sellingPrice: number;
+  supplierCost?: number;
+  supplierId?: string;
+};
+
+export type CreateSupplierInput = {
+  name: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+};
+
+export type OrderStatus =
+  | "PENDING"
+  | "PAID"
+  | "FULFILLING"
+  | "SHIPPED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "REFUNDED";
+
+export type SalesOrder = {
+  id: string;
+  orderNumber: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  source: string | null;
+  status: OrderStatus;
+  orderDate: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItem[];
+};
+
+export type OrderItem = {
+  id: string;
+  orderId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: string;
+  supplierCostSnapshot: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    supplier: {
+      id: string;
+      name: string;
+    } | null;
+  };
+};
+
+export type CreateOrderInput = {
+  orderNumber: string;
+  customerName?: string;
+  customerEmail?: string;
+  source?: string;
+  status: OrderStatus;
+  orderDate?: string;
+  notes?: string;
+  productId: string;
+  quantity: number;
+  unitPrice?: number;
+};
+
+export type ExpenseCategory =
+  | "SHIPPING"
+  | "ADS"
+  | "PLATFORM_FEES"
+  | "PACKAGING"
+  | "REFUNDS"
+  | "SOFTWARE"
+  | "SUPPLIES"
+  | "OTHER";
+
+export type Expense = {
+  id: string;
+  description: string;
+  category: ExpenseCategory;
+  amount: string;
+  vendor: string | null;
+  expenseDate: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateExpenseInput = {
+  description: string;
+  category: ExpenseCategory;
+  amount: number;
+  vendor?: string;
+  expenseDate?: string;
+  notes?: string;
+};
+
+export type CustomerIssueType =
+  | "SHIPPING_DELAY"
+  | "WRONG_ITEM"
+  | "REFUND_REQUEST"
+  | "PRODUCT_QUESTION"
+  | "PAYMENT_ISSUE"
+  | "SUPPLIER_ISSUE"
+  | "OTHER";
+
+export type CustomerIssueStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "RESOLVED"
+  | "CLOSED";
+
+export type CustomerIssuePriority = "LOW" | "MEDIUM" | "HIGH";
+
+export type CustomerIssue = {
+  id: string;
+  title: string;
+  type: CustomerIssueType;
+  status: CustomerIssueStatus;
+  priority: CustomerIssuePriority;
+  customerName: string | null;
+  customerEmail: string | null;
+  orderId: string | null;
+  order: {
+    id: string;
+    orderNumber: string;
+    status: OrderStatus;
+    orderDate: string;
+  } | null;
+  description: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateCustomerIssueInput = {
+  title: string;
+  type: CustomerIssueType;
+  status: CustomerIssueStatus;
+  priority: CustomerIssuePriority;
+  customerName?: string;
+  customerEmail?: string;
+  orderId?: string;
+  description: string;
+  notes?: string;
+};
+
+export async function getHealth(): Promise<HealthResponse> {
+  const response = await fetch("/api/health");
+
+  if (!response.ok) {
+    throw new Error("Failed to connect to bodb API");
+  }
+
+  return response.json();
+}
+
+export async function getProducts(): Promise<Product[]> {
+  const response = await fetch("/api/products");
+
+  if (!response.ok) {
+    throw new Error("Failed to load products");
+  }
+
+  return response.json();
+}
+
+export async function createProduct(input: CreateProductInput): Promise<Product> {
+  const response = await fetch("/api/products", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to create product");
+  }
+
+  return response.json();
+}
+
+export async function getSuppliers(): Promise<Supplier[]> {
+  const response = await fetch("/api/suppliers");
+
+  if (!response.ok) {
+    throw new Error("Failed to load suppliers");
+  }
+
+  return response.json();
+}
+
+export async function createSupplier(
+  input: CreateSupplierInput
+): Promise<Supplier> {
+  const response = await fetch("/api/suppliers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to create supplier");
+  }
+
+  return response.json();
+}
+
+export async function getOrders(): Promise<SalesOrder[]> {
+  const response = await fetch("/api/orders");
+
+  if (!response.ok) {
+    throw new Error("Failed to load orders");
+  }
+
+  return response.json();
+}
+
+export async function createOrder(input: CreateOrderInput): Promise<SalesOrder> {
+  const response = await fetch("/api/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to create order");
+  }
+
+  return response.json();
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  status: OrderStatus
+): Promise<SalesOrder> {
+  const response = await fetch(`/api/orders/${orderId}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ status })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to update order status");
+  }
+
+  return response.json();
+}
+
+export async function getExpenses(): Promise<Expense[]> {
+  const response = await fetch("/api/expenses");
+
+  if (!response.ok) {
+    throw new Error("Failed to load expenses");
+  }
+
+  return response.json();
+}
+
+export async function createExpense(
+  input: CreateExpenseInput
+): Promise<Expense> {
+  const response = await fetch("/api/expenses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to create expense");
+  }
+
+  return response.json();
+} 
+
+export async function getCustomerIssues(): Promise<CustomerIssue[]> {
+  const response = await fetch("/api/customer-issues");
+
+  if (!response.ok) {
+    throw new Error("Failed to load customer issues");
+  }
+
+  return response.json();
+}
+
+export async function createCustomerIssue(
+  input: CreateCustomerIssueInput
+): Promise<CustomerIssue> {
+  const response = await fetch("/api/customer-issues", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to create customer issue");
+  }
+
+  return response.json();
+}
+
+export async function updateCustomerIssueStatus(
+  issueId: string,
+  status: CustomerIssueStatus
+): Promise<CustomerIssue> {
+  const response = await fetch(`/api/customer-issues/${issueId}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ status })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(
+      errorBody?.message ?? "Failed to update customer issue status"
+    );
+  }
+
+  return response.json();
+}

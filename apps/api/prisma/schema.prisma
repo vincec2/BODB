@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FULFILLING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum ExpenseCategory {
+  SHIPPING
+  ADS
+  PLATFORM_FEES
+  PACKAGING
+  REFUNDS
+  SOFTWARE
+  SUPPLIES
+  OTHER
+}
+
+enum CustomerIssueType {
+  SHIPPING_DELAY
+  WRONG_ITEM
+  REFUND_REQUEST
+  PRODUCT_QUESTION
+  PAYMENT_ISSUE
+  SUPPLIER_ISSUE
+  OTHER
+}
+
+enum CustomerIssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum CustomerIssuePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Supplier {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  contactName String?
+  email       String?
+  phone       String?
+  notes       String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  name         String
+  sku          String      @unique
+  category     String?
+  sellingPrice Decimal     @db.Decimal(10, 2)
+  supplierCost Decimal?    @db.Decimal(10, 2)
+
+  supplierId   String?
+  supplier     Supplier?   @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  orderItems   OrderItem[]
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model SalesOrder {
+  id            String          @id @default(cuid())
+  orderNumber   String          @unique
+  customerName  String?
+  customerEmail String?
+  source        String?
+  status        OrderStatus     @default(PAID)
+  orderDate     DateTime        @default(now())
+  notes         String?
+
+  items         OrderItem[]
+  issues        CustomerIssue[]
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model OrderItem {
+  id                   String     @id @default(cuid())
+
+  orderId              String
+  order                SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId            String
+  product              Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quantity             Int
+  unitPrice            Decimal    @db.Decimal(10, 2)
+  supplierCostSnapshot Decimal?   @db.Decimal(10, 2)
+
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  description String
+  category    ExpenseCategory @default(OTHER)
+  amount      Decimal         @db.Decimal(10, 2)
+  vendor      String?
+  expenseDate DateTime        @default(now())
+  notes       String?
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model CustomerIssue {
+  id            String                @id @default(cuid())
+  title         String
+  type          CustomerIssueType     @default(OTHER)
+  status        CustomerIssueStatus   @default(OPEN)
+  priority      CustomerIssuePriority @default(MEDIUM)
+
+  customerName  String?
+  customerEmail String?
+
+  orderId       String?
+  order         SalesOrder?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  description   String
+  notes         String?
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+

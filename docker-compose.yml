@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: bodb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bodb_user
+      POSTGRES_PASSWORD: bodb_password
+      POSTGRES_DB: bodb_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - bodb_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  bodb_postgres_data:
