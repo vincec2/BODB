@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { BusinessInsights } from "./components/BusinessInsights";
 import { OverviewCharts } from "./components/OverviewCharts";
+import { BackendAnalyticsPanel } from "./components/BackendAnalyticsPanel";
+import { AiBusinessSummary } from "./components/AiBusinessSummary";
 import { CustomerIssueForm } from "./components/CustomerIssueForm";
 import { CustomerIssuesTable } from "./components/CustomerIssuesTable";
 import { DashboardSummary } from "./components/DashboardSummary";
@@ -35,6 +37,10 @@ import {
   deleteOrder,
   deleteProduct,
   deleteSupplier,
+  updateExpense,
+  updateProduct,
+  getOverviewAnalytics,
+  type OverviewAnalytics,
   type CustomerIssue,
   type CustomerIssueStatus,
   type Expense,
@@ -42,9 +48,19 @@ import {
   type OrderStatus,
   type Product,
   type SalesOrder,
-  type Supplier
+  type Supplier,
+  type UpdateExpenseInput,
+  type UpdateProductInput,
 } from "./lib/api";
 import "./App.css";
+
+type OverviewPopupPanel =
+  | "summary"
+  | "backend"
+  | "ai"
+  | "charts"
+  | "attention"
+  | "insights";
 
 function isWithinRange(dateValue: string, range: OverviewTimeRange) {
   if (range === "all") {
@@ -81,6 +97,8 @@ function App() {
   const [activeSection, setActiveSection] = useState<AppSection>("overview");
   const [overviewRange, setOverviewRange] =
     useState<OverviewTimeRange>("all");
+  const [openOverviewPanel, setOpenOverviewPanel] =
+    useState<OverviewPopupPanel | null>(null);
 
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,6 +106,10 @@ function App() {
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customerIssues, setCustomerIssues] = useState<CustomerIssue[]>([]);
+  const [overviewAnalytics, setOverviewAnalytics] =
+    useState<OverviewAnalytics | null>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState("");
   const [error, setError] = useState<string>("");
 
   const filteredOrders = useMemo(() => {
@@ -133,6 +155,24 @@ function App() {
     setCustomerIssues(customerIssueData);
   }
 
+  async function loadOverviewAnalytics(range = overviewRange) {
+    setIsLoadingAnalytics(true);
+    setAnalyticsError("");
+
+    try {
+      const analyticsData = await getOverviewAnalytics(range);
+      setOverviewAnalytics(analyticsData);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setAnalyticsError(err.message);
+      } else {
+        setAnalyticsError("Failed to load overview analytics");
+      }
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  }
+
   async function loadBusinessData() {
     await Promise.all([
       loadProducts(),
@@ -141,6 +181,8 @@ function App() {
       loadExpenses(),
       loadCustomerIssues()
     ]);
+
+    await loadOverviewAnalytics();
   }
 
   async function handleOrderStatusChange(
@@ -183,6 +225,89 @@ function App() {
     await deleteCustomerIssue(issueId);
     await loadBusinessData();
   }
+  
+  async function handleUpdateProduct(
+    productId: string,
+    input: UpdateProductInput
+  ) {
+    await updateProduct(productId, input);
+    await loadBusinessData();
+  }
+
+  async function handleUpdateExpense(
+    expenseId: string,
+    input: UpdateExpenseInput
+  ) {
+    await updateExpense(expenseId, input);
+    await loadBusinessData();
+  }
+
+  function toggleOverviewPanel(panel: OverviewPopupPanel) {
+    setOpenOverviewPanel((currentPanel) =>
+      currentPanel === panel ? null : panel
+    );
+  }
+
+  function getOverviewPanelClass(baseClass: string, panel: OverviewPopupPanel) {
+    return `${baseClass} overview-click-panel ${
+      openOverviewPanel === panel ? "is-open" : ""
+    }`;
+  }
+
+  function handleOverviewPanelClick(
+    event: React.MouseEvent<HTMLDivElement>,
+    panel: OverviewPopupPanel
+  ) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    toggleOverviewPanel(panel);
+  }
+
+  function handleOverviewPanelKeyDown(
+    event: React.KeyboardEvent<HTMLDivElement>,
+    panel: OverviewPopupPanel
+  ) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleOverviewPanel(panel);
+    }
+
+    if (event.key === "Escape") {
+      setOpenOverviewPanel(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!openOverviewPanel) {
+      return;
+    }
+
+    function handleDocumentMouseDown(event: MouseEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const openPanel = document.querySelector(".overview-click-panel.is-open");
+
+      if (!openPanel) {
+        return;
+      }
+
+      if (!openPanel.contains(target)) {
+        setOpenOverviewPanel(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleDocumentMouseDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentMouseDown);
+    };
+  }, [openOverviewPanel]);
 
   useEffect(() => {
     async function loadData() {
@@ -202,35 +327,105 @@ function App() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    loadOverviewAnalytics(overviewRange);
+  }, [overviewRange]);
+
   function renderActiveSection() {
     if (activeSection === "overview") {
       const rangeLabel = getOverviewRangeLabel(overviewRange);
 
       return (
-        <>
-          <DashboardSummary
-            orders={filteredOrders}
-            products={products}
-            expenses={filteredExpenses}
-          />
+        <section className="overview-dashboard-grid">
+          <div className="overview-filter-panel">
+            <OverviewTimeFilter
+              activeRange={overviewRange}
+              onRangeChange={setOverviewRange}
+            />
+          </div>
 
-          <OverviewCharts orders={filteredOrders} expenses={filteredExpenses} />
+          <div
+            className={getOverviewPanelClass("overview-summary-panel", "summary")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "summary")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "summary")}
+          >
+            <DashboardSummary
+              orders={filteredOrders}
+              products={products}
+              expenses={filteredExpenses}
+            />
+          </div>
 
-          <NeedsAttention
-            orders={filteredOrders}
-            products={products}
-            expenses={filteredExpenses}
-            customerIssues={filteredCustomerIssues}
-          />
+          <div
+            className={getOverviewPanelClass("overview-backend-panel", "backend")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "backend")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "backend")}
+          >
+            <BackendAnalyticsPanel
+              analytics={overviewAnalytics}
+              isLoading={isLoadingAnalytics}
+              error={analyticsError}
+            />
+          </div>
 
-          <BusinessInsights
-            orders={filteredOrders}
-            expenses={filteredExpenses}
-            customerIssues={filteredCustomerIssues}
-            products={products}
-            rangeLabel={rangeLabel}
-          />
-        </>
+          <div
+            className={getOverviewPanelClass("overview-ai-panel", "ai")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "ai")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "ai")}
+          >
+            <AiBusinessSummary
+              analytics={overviewAnalytics}
+              isAnalyticsLoading={isLoadingAnalytics}
+            />
+          </div>
+
+          <div
+            className={getOverviewPanelClass("overview-charts-panel", "charts")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "charts")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "charts")}
+          >
+            <OverviewCharts orders={filteredOrders} expenses={filteredExpenses} />
+          </div>
+
+          <div
+            className={getOverviewPanelClass("overview-attention-panel", "attention")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "attention")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "attention")}
+          >
+            <NeedsAttention
+              orders={filteredOrders}
+              products={products}
+              expenses={filteredExpenses}
+              customerIssues={filteredCustomerIssues}
+            />
+          </div>
+
+          <div
+            className={getOverviewPanelClass("overview-insights-panel", "insights")}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleOverviewPanelClick(event, "insights")}
+            onKeyDown={(event) => handleOverviewPanelKeyDown(event, "insights")}
+          >
+            <BusinessInsights
+              orders={filteredOrders}
+              expenses={filteredExpenses}
+              customerIssues={filteredCustomerIssues}
+              products={products}
+              rangeLabel={rangeLabel}
+            />
+          </div>
+        </section>
       );
     }
 
@@ -323,6 +518,7 @@ function App() {
           <ExpensesTable
             expenses={expenses}
             hasError={Boolean(error)}
+            onExpenseUpdate={handleUpdateExpense}
             onExpenseDelete={handleDeleteExpense}
           />
         </section>
@@ -349,6 +545,8 @@ function App() {
         <ProductsTable
           products={products}
           hasError={Boolean(error)}
+          suppliers={suppliers}
+          onProductUpdate={handleUpdateProduct}
           onProductDelete={handleDeleteProduct}
         />
       </section>
@@ -383,19 +581,23 @@ function App() {
           </div>
         </div>
 
-        <SectionNav
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          counts={{
-            suppliers: suppliers.length,
-            orders: orders.length,
-            customerIssues: customerIssues.length,
-            expenses: expenses.length,
-            products: products.length
-          }}
-        />
+        <div className="app-layout">
+          <aside className="sidebar-panel">
+            <SectionNav
+              activeSection={activeSection}
+              onSectionChange={setActiveSection}
+              counts={{
+                suppliers: suppliers.length,
+                orders: orders.length,
+                customerIssues: customerIssues.length,
+                expenses: expenses.length,
+                products: products.length
+              }}
+            />
+          </aside>
 
-        {renderActiveSection()}
+          <div className="app-content">{renderActiveSection()}</div>
+        </div>
       </section>
     </main>
   );

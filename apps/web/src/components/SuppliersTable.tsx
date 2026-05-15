@@ -88,7 +88,9 @@ export function SuppliersTable({ suppliers, hasError, onSupplierDelete }: Suppli
                 <td>{supplier.email ?? "—"}</td>
                 <td>{supplier.phone ?? "—"}</td>
                 <td>{supplier._count.products}</td>
-                <td>{supplier.notes ?? "—"}</td>
+                <td className="expanding-text-cell">
+                  <span>{supplier.notes || "—"}</span>
+                </td>
                 <td>
                   <button
                     className="danger-button small-button"

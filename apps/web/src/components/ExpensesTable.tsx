@@ -1,10 +1,27 @@
 import { useMemo, useState } from "react";
-import type { Expense, ExpenseCategory } from "../lib/api";
+import type {
+  Expense,
+  ExpenseCategory,
+  UpdateExpenseInput
+} from "../lib/api";
 
 type ExpensesTableProps = {
   expenses: Expense[];
   hasError: boolean;
+  onExpenseUpdate: (
+    expenseId: string,
+    input: UpdateExpenseInput
+  ) => Promise<void>;
   onExpenseDelete: (expenseId: string) => Promise<void>;
+};
+
+type ExpenseEditForm = {
+  description: string;
+  category: ExpenseCategory;
+  amount: string;
+  vendor: string;
+  expenseDate: string;
+  notes: string;
 };
 
 const expenseCategories: { value: ExpenseCategory; label: string }[] = [
@@ -33,6 +50,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateInputValue(value: string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
 function formatCategory(value: string) {
   return value
     .replace("_", " ")
@@ -40,12 +61,35 @@ function formatCategory(value: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function ExpensesTable({ expenses, hasError, onExpenseDelete }: ExpensesTableProps) {
+function getInitialEditForm(expense: Expense): ExpenseEditForm {
+  return {
+    description: expense.description,
+    category: expense.category,
+    amount: expense.amount,
+    vendor: expense.vendor ?? "",
+    expenseDate: formatDateInputValue(expense.expenseDate),
+    notes: expense.notes ?? ""
+  };
+}
+
+export function ExpensesTable({
+  expenses,
+  hasError,
+  onExpenseUpdate,
+  onExpenseDelete
+}: ExpensesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<
     "ALL" | ExpenseCategory
   >("ALL");
-  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ExpenseEditForm | null>(null);
+  const [savingExpenseId, setSavingExpenseId] = useState<string | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(
+    null
+  );
+  const [tableError, setTableError] = useState("");
 
   const filteredExpenses = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -68,6 +112,62 @@ export function ExpensesTable({ expenses, hasError, onExpenseDelete }: ExpensesT
     return total + Number(expense.amount);
   }, 0);
 
+  function startEditingExpense(expense: Expense) {
+    setTableError("");
+    setEditingExpenseId(expense.id);
+    setEditForm(getInitialEditForm(expense));
+  }
+
+  function cancelEditingExpense() {
+    setEditingExpenseId(null);
+    setEditForm(null);
+  }
+
+  function updateEditField(field: keyof ExpenseEditForm, value: string) {
+    setEditForm((currentForm) => {
+      if (!currentForm) {
+        return currentForm;
+      }
+
+      return {
+        ...currentForm,
+        [field]: value
+      };
+    });
+  }
+
+  async function handleSaveExpense(expense: Expense) {
+    if (!editForm) {
+      return;
+    }
+
+    setTableError("");
+    setSavingExpenseId(expense.id);
+
+    const input: UpdateExpenseInput = {
+      description: editForm.description,
+      category: editForm.category,
+      amount: Number(editForm.amount),
+      vendor: editForm.vendor || null,
+      expenseDate: editForm.expenseDate,
+      notes: editForm.notes || null
+    };
+
+    try {
+      await onExpenseUpdate(expense.id, input);
+      setEditingExpenseId(null);
+      setEditForm(null);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setTableError(err.message);
+      } else {
+        setTableError("Failed to update expense");
+      }
+    } finally {
+      setSavingExpenseId(null);
+    }
+  }
+
   async function handleDeleteExpense(expense: Expense) {
     const confirmed = window.confirm(
       `Delete expense "${expense.description}"?`
@@ -77,10 +177,17 @@ export function ExpensesTable({ expenses, hasError, onExpenseDelete }: ExpensesT
       return;
     }
 
+    setTableError("");
     setDeletingExpenseId(expense.id);
 
     try {
       await onExpenseDelete(expense.id);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setTableError(err.message);
+      } else {
+        setTableError("Failed to delete expense");
+      }
     } finally {
       setDeletingExpenseId(null);
     }
@@ -131,6 +238,8 @@ export function ExpensesTable({ expenses, hasError, onExpenseDelete }: ExpensesT
         </div>
       </div>
 
+      {tableError && <p className="table-error-message">{tableError}</p>}
+
       <div className="table-card">
         <table>
           <thead>
@@ -146,26 +255,137 @@ export function ExpensesTable({ expenses, hasError, onExpenseDelete }: ExpensesT
           </thead>
 
           <tbody>
-            {filteredExpenses.map((expense) => (
-              <tr key={expense.id}>
-                <td>{expense.description}</td>
-                <td>{formatCategory(expense.category)}</td>
-                <td>{formatCurrency(expense.amount)}</td>
-                <td>{expense.vendor ?? "—"}</td>
-                <td>{formatDate(expense.expenseDate)}</td>
-                <td>{expense.notes ?? "—"}</td>
-                <td>
-                  <button
-                    className="danger-button small-button"
-                    type="button"
-                    disabled={deletingExpenseId === expense.id}
-                    onClick={() => handleDeleteExpense(expense)}
-                  >
-                    {deletingExpenseId === expense.id ? "Deleting..." : "Delete"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filteredExpenses.map((expense) => {
+              const isEditing = editingExpenseId === expense.id;
+              const isSaving = savingExpenseId === expense.id;
+
+              if (isEditing && editForm) {
+                return (
+                  <tr key={expense.id}>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.description}
+                        onChange={(event) =>
+                          updateEditField("description", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="inline-select"
+                        value={editForm.category}
+                        onChange={(event) =>
+                          updateEditField("category", event.target.value)
+                        }
+                      >
+                        {expenseCategories.map((category) => (
+                          <option key={category.value} value={category.value}>
+                            {category.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editForm.amount}
+                        onChange={(event) =>
+                          updateEditField("amount", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.vendor}
+                        onChange={(event) =>
+                          updateEditField("vendor", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        type="date"
+                        value={editForm.expenseDate}
+                        onChange={(event) =>
+                          updateEditField("expenseDate", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.notes}
+                        onChange={(event) =>
+                          updateEditField("notes", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          className="small-button"
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => handleSaveExpense(expense)}
+                        >
+                          {isSaving ? "Saving..." : "Save"}
+                        </button>
+
+                        <button
+                          className="secondary-button small-button"
+                          type="button"
+                          disabled={isSaving}
+                          onClick={cancelEditingExpense}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={expense.id}>
+                  <td>{expense.description}</td>
+                  <td>{formatCategory(expense.category)}</td>
+                  <td>{formatCurrency(expense.amount)}</td>
+                  <td>{expense.vendor ?? "—"}</td>
+                  <td>{formatDate(expense.expenseDate)}</td>
+                  <td className="expanding-text-cell">
+                    <span>{expense.notes || "—"}</span>
+                  </td>
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        className="secondary-button small-button"
+                        type="button"
+                        onClick={() => startEditingExpense(expense)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="danger-button small-button"
+                        type="button"
+                        disabled={deletingExpenseId === expense.id}
+                        onClick={() => handleDeleteExpense(expense)}
+                      >
+                        {deletingExpenseId === expense.id
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

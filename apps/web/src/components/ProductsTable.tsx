@@ -1,10 +1,28 @@
 import { useMemo, useState } from "react";
-import type { Product } from "../lib/api";
+import type {
+  Product,
+  Supplier,
+  UpdateProductInput
+} from "../lib/api";
 
 type ProductsTableProps = {
   products: Product[];
+  suppliers: Supplier[];
   hasError: boolean;
+  onProductUpdate: (
+    productId: string,
+    input: UpdateProductInput
+  ) => Promise<void>;
   onProductDelete: (productId: string) => Promise<void>;
+};
+
+type ProductEditForm = {
+  name: string;
+  sku: string;
+  supplierId: string;
+  category: string;
+  sellingPrice: string;
+  supplierCost: string;
 };
 
 function formatCurrency(value: string | null) {
@@ -43,11 +61,35 @@ function formatMargin(product: Product) {
   return `${margin.toFixed(1)}%`;
 }
 
-export function ProductsTable({ products, hasError, onProductDelete }: ProductsTableProps) {
+function getInitialEditForm(product: Product): ProductEditForm {
+  return {
+    name: product.name,
+    sku: product.sku,
+    supplierId: product.supplierId ?? "",
+    category: product.category ?? "",
+    sellingPrice: product.sellingPrice,
+    supplierCost: product.supplierCost ?? ""
+  };
+}
+
+export function ProductsTable({
+  products,
+  suppliers,
+  hasError,
+  onProductUpdate,
+  onProductDelete
+}: ProductsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [costFilter, setCostFilter] = useState("all");
-  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<ProductEditForm | null>(null);
+  const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(
+    null
+  );
+  const [tableError, setTableError] = useState("");
 
   const supplierOptions = useMemo(() => {
     const names = products
@@ -83,6 +125,62 @@ export function ProductsTable({ products, hasError, onProductDelete }: ProductsT
     });
   }, [products, searchTerm, supplierFilter, costFilter]);
 
+  function startEditingProduct(product: Product) {
+    setTableError("");
+    setEditingProductId(product.id);
+    setEditForm(getInitialEditForm(product));
+  }
+
+  function cancelEditingProduct() {
+    setEditingProductId(null);
+    setEditForm(null);
+  }
+
+  function updateEditField(field: keyof ProductEditForm, value: string) {
+    setEditForm((currentForm) => {
+      if (!currentForm) {
+        return currentForm;
+      }
+
+      return {
+        ...currentForm,
+        [field]: value
+      };
+    });
+  }
+
+  async function handleSaveProduct(product: Product) {
+    if (!editForm) {
+      return;
+    }
+
+    setTableError("");
+    setSavingProductId(product.id);
+
+    const input: UpdateProductInput = {
+      name: editForm.name,
+      sku: editForm.sku,
+      supplierId: editForm.supplierId || null,
+      category: editForm.category || null,
+      sellingPrice: Number(editForm.sellingPrice),
+      supplierCost: editForm.supplierCost ? Number(editForm.supplierCost) : null
+    };
+
+    try {
+      await onProductUpdate(product.id, input);
+      setEditingProductId(null);
+      setEditForm(null);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setTableError(err.message);
+      } else {
+        setTableError("Failed to update product");
+      }
+    } finally {
+      setSavingProductId(null);
+    }
+  }
+
   async function handleDeleteProduct(product: Product) {
     const confirmed = window.confirm(
       `Delete product "${product.name}"? This may fail if the product is already used in an order.`
@@ -92,10 +190,17 @@ export function ProductsTable({ products, hasError, onProductDelete }: ProductsT
       return;
     }
 
+    setTableError("");
     setDeletingProductId(product.id);
 
     try {
       await onProductDelete(product.id);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setTableError(err.message);
+      } else {
+        setTableError("Failed to delete product");
+      }
     } finally {
       setDeletingProductId(null);
     }
@@ -151,6 +256,8 @@ export function ProductsTable({ products, hasError, onProductDelete }: ProductsT
         </div>
       </div>
 
+      {tableError && <p className="table-error-message">{tableError}</p>}
+
       <div className="table-card">
         <table>
           <thead>
@@ -167,27 +274,140 @@ export function ProductsTable({ products, hasError, onProductDelete }: ProductsT
           </thead>
 
           <tbody>
-            {filteredProducts.map((product) => (
-              <tr key={product.id}>
-                <td>{product.name}</td>
-                <td>{product.sku}</td>
-                <td>{product.supplier?.name ?? "—"}</td>
-                <td>{product.category ?? "—"}</td>
-                <td>{formatCurrency(product.sellingPrice)}</td>
-                <td>{formatCurrency(product.supplierCost)}</td>
-                <td>{formatMargin(product)}</td>
-                <td>
-                  <button
-                    className="danger-button small-button"
-                    type="button"
-                    disabled={deletingProductId === product.id}
-                    onClick={() => handleDeleteProduct(product)}
-                  >
-                    {deletingProductId === product.id ? "Deleting..." : "Delete"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filteredProducts.map((product) => {
+              const isEditing = editingProductId === product.id;
+              const isSaving = savingProductId === product.id;
+
+              if (isEditing && editForm) {
+                return (
+                  <tr key={product.id}>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.name}
+                        onChange={(event) =>
+                          updateEditField("name", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.sku}
+                        onChange={(event) =>
+                          updateEditField("sku", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="inline-select"
+                        value={editForm.supplierId}
+                        onChange={(event) =>
+                          updateEditField("supplierId", event.target.value)
+                        }
+                      >
+                        <option value="">No supplier</option>
+                        {suppliers.map((supplier) => (
+                          <option key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        value={editForm.category}
+                        onChange={(event) =>
+                          updateEditField("category", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editForm.sellingPrice}
+                        onChange={(event) =>
+                          updateEditField("sellingPrice", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="inline-input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editForm.supplierCost}
+                        onChange={(event) =>
+                          updateEditField("supplierCost", event.target.value)
+                        }
+                      />
+                    </td>
+                    <td>—</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          className="small-button"
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => handleSaveProduct(product)}
+                        >
+                          {isSaving ? "Saving..." : "Save"}
+                        </button>
+
+                        <button
+                          className="secondary-button small-button"
+                          type="button"
+                          disabled={isSaving}
+                          onClick={cancelEditingProduct}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={product.id}>
+                  <td>{product.name}</td>
+                  <td>{product.sku}</td>
+                  <td>{product.supplier?.name ?? "—"}</td>
+                  <td>{product.category ?? "—"}</td>
+                  <td>{formatCurrency(product.sellingPrice)}</td>
+                  <td>{formatCurrency(product.supplierCost)}</td>
+                  <td>{formatMargin(product)}</td>
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        className="secondary-button small-button"
+                        type="button"
+                        onClick={() => startEditingProduct(product)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="danger-button small-button"
+                        type="button"
+                        disabled={deletingProductId === product.id}
+                        onClick={() => handleDeleteProduct(product)}
+                      >
+                        {deletingProductId === product.id
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

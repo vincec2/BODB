@@ -56,6 +56,26 @@ const importExpenseRowSchema = z.object({
   notes: optionalText
 });
 
+const updateExpenseSchema = z.object({
+  description: z.string().trim().min(1, "Description is required").optional(),
+  category: z
+    .enum([
+      "SHIPPING",
+      "ADS",
+      "PLATFORM_FEES",
+      "PACKAGING",
+      "REFUNDS",
+      "SOFTWARE",
+      "SUPPLIES",
+      "OTHER"
+    ])
+    .optional(),
+  amount: z.coerce.number().positive("Amount must be greater than 0").optional(),
+  vendor: z.string().trim().nullable().optional(),
+  expenseDate: z.string().trim().optional(),
+  notes: z.string().trim().nullable().optional()
+});
+
 expensesRouter.get("/", async (_req, res, next) => {
   try {
     const expenses = await prisma.expense.findMany({
@@ -225,6 +245,68 @@ expensesRouter.delete("/:id", async (req, res) => {
 
     res.status(500).json({
       message: "Could not delete expense."
+    });
+  }
+});
+
+expensesRouter.patch("/:id", async (req, res) => {
+  const result = updateExpenseSchema.safeParse(req.body);
+
+  if (!result.success) {
+    res.status(400).json({
+      message: "Invalid expense data",
+      errors: result.error.flatten().fieldErrors
+    });
+    return;
+  }
+
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Expense ID is required" });
+    return;
+  }
+
+  const { description, category, amount, vendor, expenseDate, notes } =
+    result.data;
+
+  if (expenseDate && Number.isNaN(new Date(expenseDate).getTime())) {
+    res.status(400).json({
+      message: "Expense date must be a valid date"
+    });
+    return;
+  }
+
+  try {
+    const existingExpense = await prisma.expense.findUnique({
+      where: { id }
+    });
+
+    if (!existingExpense) {
+      res.status(404).json({ message: "Expense not found" });
+      return;
+    }
+
+    const updatedExpense = await prisma.expense.update({
+      where: { id },
+      data: {
+        ...(description !== undefined ? { description } : {}),
+        ...(category !== undefined ? { category } : {}),
+        ...(amount !== undefined ? { amount } : {}),
+        ...(vendor !== undefined ? { vendor: vendor || null } : {}),
+        ...(expenseDate !== undefined
+          ? { expenseDate: new Date(expenseDate) }
+          : {}),
+        ...(notes !== undefined ? { notes: notes || null } : {})
+      }
+    });
+
+    res.json(updatedExpense);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Could not update expense."
     });
   }
 });

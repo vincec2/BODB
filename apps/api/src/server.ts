@@ -5,6 +5,7 @@ import { suppliersRouter } from "./routes/suppliers.js";
 import { ordersRouter } from "./routes/orders.js";
 import { expensesRouter } from "./routes/expenses.js";
 import { customerIssuesRouter } from "./routes/customerIssues.js";
+import { analyticsRouter } from "./routes/analytics.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -24,6 +25,7 @@ app.use("/api/suppliers", suppliersRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/customer-issues", customerIssuesRouter);
+app.use("/api/analytics", analyticsRouter);
 
 app.use(
   (

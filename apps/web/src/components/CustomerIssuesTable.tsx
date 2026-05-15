@@ -267,7 +267,9 @@ export function CustomerIssuesTable({
                   <td>{issue.customerName ?? "—"}</td>
                   <td>{issue.order?.orderNumber ?? "—"}</td>
                   <td>{formatDate(issue.createdAt)}</td>
-                  <td>{issue.description}</td>
+                  <td className="expanding-text-cell expanding-text-cell-wide">
+                    <span>{issue.description || "—"}</span>
+                  </td>
                   <td>
                     <button
                       className="danger-button small-button"

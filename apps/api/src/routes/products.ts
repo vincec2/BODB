@@ -41,6 +41,22 @@ const importProductRowSchema = z.object({
     .optional()
 });
 
+const updateProductSchema = z.object({
+  name: z.string().trim().min(1, "Product name is required").optional(),
+  sku: z.string().trim().min(1, "SKU is required").optional(),
+  category: z.string().trim().nullable().optional(),
+  sellingPrice: z.coerce
+    .number()
+    .positive("Selling price must be greater than 0")
+    .optional(),
+  supplierCost: z.coerce
+    .number()
+    .nonnegative("Supplier cost cannot be negative")
+    .nullable()
+    .optional(),
+  supplierId: z.string().trim().nullable().optional()
+});
+
 productsRouter.get("/", async (_req, res, next) => {
   try {
     const products = await prisma.product.findMany({
@@ -257,6 +273,85 @@ productsRouter.delete("/:id", async (req, res) => {
     res.status(409).json({
       message:
         "Could not delete product. It may already be used by an order."
+    });
+  }
+});
+
+productsRouter.patch("/:id", async (req, res) => {
+  const result = updateProductSchema.safeParse(req.body);
+
+  if (!result.success) {
+    res.status(400).json({
+      message: "Invalid product data",
+      errors: result.error.flatten().fieldErrors
+    });
+    return;
+  }
+
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Product ID is required" });
+    return;
+  }
+
+  const {
+    name,
+    sku,
+    category,
+    sellingPrice,
+    supplierCost,
+    supplierId
+  } = result.data;
+
+  try {
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
+      res.status(404).json({ message: "Product not found" });
+      return;
+    }
+
+    if (supplierId) {
+      const existingSupplier = await prisma.supplier.findUnique({
+        where: { id: supplierId }
+      });
+
+      if (!existingSupplier) {
+        res.status(404).json({ message: "Supplier not found" });
+        return;
+      }
+    }
+
+    const updatedProduct = await prisma.product.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(sku !== undefined ? { sku } : {}),
+        ...(category !== undefined ? { category: category || null } : {}),
+        ...(sellingPrice !== undefined ? { sellingPrice } : {}),
+        ...(supplierCost !== undefined ? { supplierCost } : {}),
+        ...(supplierId !== undefined ? { supplierId: supplierId || null } : {})
+      },
+      include: {
+        supplier: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    res.json(updatedProduct);
+  } catch (error) {
+    console.error(error);
+
+    res.status(409).json({
+      message:
+        "Could not update product. The SKU may already exist or the supplier may be invalid."
     });
   }
 });

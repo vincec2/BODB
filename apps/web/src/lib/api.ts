@@ -42,6 +42,15 @@ export type CreateProductInput = {
   supplierId?: string;
 };
 
+export type UpdateProductInput = {
+  name?: string;
+  sku?: string;
+  category?: string | null;
+  sellingPrice?: number;
+  supplierCost?: number | null;
+  supplierId?: string | null;
+};
+
 export type CreateSupplierInput = {
   name: string;
   contactName?: string;
@@ -151,6 +160,15 @@ export type ExpenseImportResult = {
   expenses: Expense[];
 };
 
+export type UpdateExpenseInput = {
+  description?: string;
+  category?: ExpenseCategory;
+  amount?: number;
+  vendor?: string | null;
+  expenseDate?: string;
+  notes?: string | null;
+};
+
 export type CustomerIssueType =
   | "SHIPPING_DELAY"
   | "WRONG_ITEM"
@@ -200,6 +218,76 @@ export type CreateCustomerIssueInput = {
   description: string;
   notes?: string;
 };
+
+export type AnalyticsRange = "all" | "last7" | "last30" | "monthToDate";
+
+export type OverviewAnalytics = {
+  range: AnalyticsRange;
+  generatedAt: string;
+  summary: {
+    revenue: number;
+    supplierCost: number;
+    grossProfit: number;
+    expenses: number;
+    estimatedNetProfit: number;
+    orderCount: number;
+    expenseCount: number;
+    productCount: number;
+    customerIssueCount: number;
+    openIssueCount: number;
+    highPriorityOpenIssueCount: number;
+    lowMarginProductCount: number;
+  };
+  charts: {
+    financialSummary: {
+      name: string;
+      amount: number;
+    }[];
+    ordersByStatus: {
+      status: string;
+      name: string;
+      value: number;
+    }[];
+    expensesByCategory: {
+      category: string;
+      name: string;
+      amount: number;
+    }[];
+    topProductsByRevenue: {
+      productId: string;
+      name: string;
+      revenue: number;
+    }[];
+  };
+  insights: {
+    topExpenseCategory: {
+      category: string;
+      name: string;
+      amount: number;
+    } | null;
+    topProduct: {
+      productId: string;
+      name: string;
+      revenue: number;
+    } | null;
+    lowMarginProductCount: number;
+    openIssueCount: number;
+    highPriorityOpenIssueCount: number;
+  };
+};
+
+export type BusinessSummaryRiskLevel = "low" | "medium" | "high";
+
+export type BusinessSummary = {
+  generatedAt: string;
+  title: string;
+  riskLevel: BusinessSummaryRiskLevel;
+  summaryText: string;
+  highlights: string[];
+  recommendations: string[];
+};
+
+
 
 export async function getHealth(): Promise<HealthResponse> {
   const response = await fetch("/api/health");
@@ -503,4 +591,76 @@ export async function deleteCustomerIssue(issueId: string): Promise<void> {
     `/api/customer-issues/${issueId}`,
     "Failed to delete customer issue"
   );
+}
+
+export async function updateProduct(
+  productId: string,
+  input: UpdateProductInput
+): Promise<Product> {
+  const response = await fetch(`/api/products/${productId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to update product");
+  }
+
+  return response.json();
+}
+
+export async function updateExpense(
+  expenseId: string,
+  input: UpdateExpenseInput
+): Promise<Expense> {
+  const response = await fetch(`/api/expenses/${expenseId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to update expense");
+  }
+
+  return response.json();
+}
+
+export async function getOverviewAnalytics(
+  range: AnalyticsRange
+): Promise<OverviewAnalytics> {
+  const response = await fetch(`/api/analytics/overview?range=${range}`);
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to load overview analytics");
+  }
+
+  return response.json();
+}
+
+export async function generateBusinessSummary(
+  analytics: OverviewAnalytics
+): Promise<BusinessSummary> {
+  const response = await fetch("/api/analytics/summary", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ analytics })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? "Failed to generate business summary");
+  }
+
+  return response.json();
 }
