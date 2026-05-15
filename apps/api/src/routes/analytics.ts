@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { openai, openaiModel } from "../lib/openai.js";
 
 export const analyticsRouter = Router();
 
@@ -43,6 +44,15 @@ const analyticsSummaryRequestSchema = z.object({
       highPriorityOpenIssueCount: z.number()
     })
   })
+});
+
+const aiBusinessSummarySchema = z.object({
+  generatedAt: z.string(),
+  title: z.string(),
+  riskLevel: z.enum(["low", "medium", "high"]),
+  summaryText: z.string(),
+  highlights: z.array(z.string()).min(1).max(8),
+  recommendations: z.array(z.string()).min(1).max(8)
 });
 
 function formatCurrency(value: number) {
@@ -228,6 +238,73 @@ function buildBusinessSummary(
   };
 }
 
+async function buildOpenAiBusinessSummary(
+  analytics: z.infer<typeof analyticsSummaryRequestSchema>["analytics"]
+) {
+  if (!openai) {
+    return buildBusinessSummary(analytics);
+  }
+
+  const rangeLabel = getRangeLabel(analytics.range);
+
+  const prompt = `
+You are an operations analyst for a small business dashboard called bodb.
+
+Write a concise business summary based ONLY on the analytics JSON below.
+
+Return ONLY valid JSON. Do not use markdown. Do not wrap the response in code fences.
+
+The JSON response must match this exact shape:
+{
+  "generatedAt": "ISO date string",
+  "title": "string",
+  "riskLevel": "low" | "medium" | "high",
+  "summaryText": "string",
+  "highlights": ["string"],
+  "recommendations": ["string"]
+}
+
+Rules:
+- Use Canadian dollars when discussing money.
+- Be practical and business-focused.
+- Do not invent data.
+- Do not mention numbers that are not in the analytics JSON.
+- Keep summaryText to 2-4 sentences.
+- Include 3-6 highlights.
+- Include 3-6 recommendations.
+- Risk level should be:
+  - "high" if estimated net profit is negative, there are high-priority open issues, or there are many open issues.
+  - "medium" if profit is positive but there are low-margin products or some open issues.
+  - "low" only if the business appears stable.
+- The reporting period is ${rangeLabel}.
+
+Analytics JSON:
+${JSON.stringify(analytics, null, 2)}
+`;
+
+  const response = await openai.responses.create({
+    model: openaiModel,
+    input: prompt,
+    max_output_tokens: 900
+  });
+
+  const rawText = response.output_text;
+
+  if (!rawText) {
+    return buildBusinessSummary(analytics);
+  }
+
+  try {
+    const parsed = parseAiJsonResponse(rawText);
+    return aiBusinessSummarySchema.parse(parsed);
+  } catch (error) {
+    console.error("Failed to parse OpenAI summary response:", error);
+    console.error("Raw OpenAI response:", rawText);
+
+    return buildBusinessSummary(analytics);
+  }
+}
+
 function isOverviewRange(value: unknown): value is OverviewRange {
   return typeof value === "string" && overviewRanges.includes(value as OverviewRange);
 }
@@ -303,6 +380,17 @@ function formatEnumLabel(value: string) {
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function parseAiJsonResponse(text: string) {
+  const cleanedText = text
+    .trim()
+    .replace(/^```json/i, "")
+    .replace(/^```/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  return JSON.parse(cleanedText);
 }
 
 analyticsRouter.get("/overview", async (req, res) => {
@@ -542,9 +630,14 @@ analyticsRouter.post("/summary", async (req, res) => {
   }
 
   try {
-    const businessSummary = buildBusinessSummary(result.data.analytics);
+    const businessSummary = await buildOpenAiBusinessSummary(
+      result.data.analytics
+    );
 
-    res.json(businessSummary);
+    res.json({
+      ...businessSummary,
+      model: openai ? openaiModel : "rule-based-fallback"
+    });
   } catch (error) {
     console.error(error);
 

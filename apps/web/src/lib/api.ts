@@ -285,6 +285,7 @@ export type BusinessSummary = {
   summaryText: string;
   highlights: string[];
   recommendations: string[];
+  model?: string;
 };
 
 

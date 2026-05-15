@@ -99,7 +99,10 @@ export function AiBusinessSummary({
           <div className="ai-summary-result-header">
             <div>
               <h3>{summary.title}</h3>
-              <p>Generated {formatDateTime(summary.generatedAt)}</p>
+              <p>
+                Generated {formatDateTime(summary.generatedAt)}
+                {summary.model ? ` · ${summary.model}` : ""}
+              </p>
             </div>
 
             <span className={`risk-badge risk-badge-${summary.riskLevel}`}>
