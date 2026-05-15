@@ -101,7 +101,6 @@ export function AiBusinessSummary({
               <h3>{summary.title}</h3>
               <p>
                 Generated {formatDateTime(summary.generatedAt)}
-                {summary.model ? ` · ${summary.model}` : ""}
               </p>
             </div>
 
