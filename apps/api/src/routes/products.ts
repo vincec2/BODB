@@ -227,3 +227,36 @@ productsRouter.post("/import", async (req, res) => {
     });
   }
 });
+
+productsRouter.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Product ID is required" });
+    return;
+  }
+
+  try {
+    const existingProduct = await prisma.product.findUnique({
+      where: { id }
+    });
+
+    if (!existingProduct) {
+      res.status(404).json({ message: "Product not found" });
+      return;
+    }
+
+    await prisma.product.delete({
+      where: { id }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+
+    res.status(409).json({
+      message:
+        "Could not delete product. It may already be used by an order."
+    });
+  }
+});

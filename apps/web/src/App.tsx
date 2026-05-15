@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BusinessInsights } from "./components/BusinessInsights";
+import { OverviewCharts } from "./components/OverviewCharts";
 import { CustomerIssueForm } from "./components/CustomerIssueForm";
 import { CustomerIssuesTable } from "./components/CustomerIssuesTable";
 import { DashboardSummary } from "./components/DashboardSummary";
@@ -29,6 +30,11 @@ import {
   getSuppliers,
   updateCustomerIssueStatus,
   updateOrderStatus,
+  deleteCustomerIssue,
+  deleteExpense,
+  deleteOrder,
+  deleteProduct,
+  deleteSupplier,
   type CustomerIssue,
   type CustomerIssueStatus,
   type Expense,
@@ -153,6 +159,31 @@ function App() {
     await loadBusinessData();
   }
 
+  async function handleDeleteProduct(productId: string) {
+    await deleteProduct(productId);
+    await loadBusinessData();
+  }
+
+  async function handleDeleteSupplier(supplierId: string) {
+    await deleteSupplier(supplierId);
+    await loadBusinessData();
+  }
+
+  async function handleDeleteOrder(orderId: string) {
+    await deleteOrder(orderId);
+    await loadBusinessData();
+  }
+
+  async function handleDeleteExpense(expenseId: string) {
+    await deleteExpense(expenseId);
+    await loadBusinessData();
+  }
+
+  async function handleDeleteCustomerIssue(issueId: string) {
+    await deleteCustomerIssue(issueId);
+    await loadBusinessData();
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -177,16 +208,13 @@ function App() {
 
       return (
         <>
-          <OverviewTimeFilter
-            activeRange={overviewRange}
-            onRangeChange={setOverviewRange}
-          />
-
           <DashboardSummary
             orders={filteredOrders}
             products={products}
             expenses={filteredExpenses}
           />
+
+          <OverviewCharts orders={filteredOrders} expenses={filteredExpenses} />
 
           <NeedsAttention
             orders={filteredOrders}
@@ -219,7 +247,11 @@ function App() {
 
           <SupplierForm onSupplierCreated={loadBusinessData} />
 
-          <SuppliersTable suppliers={suppliers} hasError={Boolean(error)} />
+          <SuppliersTable
+            suppliers={suppliers}
+            hasError={Boolean(error)}
+            onSupplierDelete={handleDeleteSupplier}
+          />
         </section>
       );
     }
@@ -241,6 +273,7 @@ function App() {
             orders={orders}
             hasError={Boolean(error)}
             onOrderStatusChange={handleOrderStatusChange}
+            onOrderDelete={handleDeleteOrder}
           />
         </section>
       );
@@ -266,6 +299,7 @@ function App() {
             customerIssues={customerIssues}
             hasError={Boolean(error)}
             onCustomerIssueStatusChange={handleCustomerIssueStatusChange}
+            onCustomerIssueDelete={handleDeleteCustomerIssue}
           />
         </section>
       );
@@ -286,7 +320,11 @@ function App() {
 
           <ExpenseForm onExpenseCreated={loadBusinessData} />
 
-          <ExpensesTable expenses={expenses} hasError={Boolean(error)} />
+          <ExpensesTable
+            expenses={expenses}
+            hasError={Boolean(error)}
+            onExpenseDelete={handleDeleteExpense}
+          />
         </section>
       );
     }
@@ -308,7 +346,11 @@ function App() {
           onProductCreated={loadBusinessData}
         />
 
-        <ProductsTable products={products} hasError={Boolean(error)} />
+        <ProductsTable
+          products={products}
+          hasError={Boolean(error)}
+          onProductDelete={handleDeleteProduct}
+        />
       </section>
     );
   }

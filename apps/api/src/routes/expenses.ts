@@ -196,3 +196,35 @@ expensesRouter.post("/import", async (req, res) => {
     });
   }
 });
+
+expensesRouter.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Expense ID is required" });
+    return;
+  }
+
+  try {
+    const existingExpense = await prisma.expense.findUnique({
+      where: { id }
+    });
+
+    if (!existingExpense) {
+      res.status(404).json({ message: "Expense not found" });
+      return;
+    }
+
+    await prisma.expense.delete({
+      where: { id }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Could not delete expense."
+    });
+  }
+});

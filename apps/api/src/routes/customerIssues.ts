@@ -168,3 +168,35 @@ customerIssuesRouter.patch("/:id/status", async (req, res) => {
     });
   }
 });
+
+customerIssuesRouter.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Customer issue ID is required" });
+    return;
+  }
+
+  try {
+    const existingIssue = await prisma.customerIssue.findUnique({
+      where: { id }
+    });
+
+    if (!existingIssue) {
+      res.status(404).json({ message: "Customer issue not found" });
+      return;
+    }
+
+    await prisma.customerIssue.delete({
+      where: { id }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Could not delete customer issue."
+    });
+  }
+});

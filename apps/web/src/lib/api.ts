@@ -467,3 +467,40 @@ export async function updateCustomerIssueStatus(
 
   return response.json();
 }
+
+async function deleteResource(url: string, fallbackMessage: string) {
+  const response = await fetch(url, {
+    method: "DELETE"
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.message ?? fallbackMessage);
+  }
+}
+
+export async function deleteProduct(productId: string): Promise<void> {
+  await deleteResource(`/api/products/${productId}`, "Failed to delete product");
+}
+
+export async function deleteSupplier(supplierId: string): Promise<void> {
+  await deleteResource(
+    `/api/suppliers/${supplierId}`,
+    "Failed to delete supplier"
+  );
+}
+
+export async function deleteOrder(orderId: string): Promise<void> {
+  await deleteResource(`/api/orders/${orderId}`, "Failed to delete order");
+}
+
+export async function deleteExpense(expenseId: string): Promise<void> {
+  await deleteResource(`/api/expenses/${expenseId}`, "Failed to delete expense");
+}
+
+export async function deleteCustomerIssue(issueId: string): Promise<void> {
+  await deleteResource(
+    `/api/customer-issues/${issueId}`,
+    "Failed to delete customer issue"
+  );
+}

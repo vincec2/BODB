@@ -197,3 +197,35 @@ ordersRouter.patch("/:id/status", async (req, res) => {
     });
   }
 });
+
+ordersRouter.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Order ID is required" });
+    return;
+  }
+
+  try {
+    const existingOrder = await prisma.salesOrder.findUnique({
+      where: { id }
+    });
+
+    if (!existingOrder) {
+      res.status(404).json({ message: "Order not found" });
+      return;
+    }
+
+    await prisma.salesOrder.delete({
+      where: { id }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Could not delete order."
+    });
+  }
+});

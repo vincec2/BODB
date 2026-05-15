@@ -73,3 +73,35 @@ suppliersRouter.post("/", async (req, res) => {
     });
   }
 });
+
+suppliersRouter.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    res.status(400).json({ message: "Supplier ID is required" });
+    return;
+  }
+
+  try {
+    const existingSupplier = await prisma.supplier.findUnique({
+      where: { id }
+    });
+
+    if (!existingSupplier) {
+      res.status(404).json({ message: "Supplier not found" });
+      return;
+    }
+
+    await prisma.supplier.delete({
+      where: { id }
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      message: "Could not delete supplier."
+    });
+  }
+});
