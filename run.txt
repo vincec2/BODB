@@ -1,0 +1,356 @@
+bodb Localhost Run Instructions
+===============================
+
+This file explains how to run bodb locally on your computer.
+
+Project structure expected:
+
+bodb/
+  apps/
+    api/
+    web/
+  docker-compose.yml
+  package.json
+  run.txt
+
+
+Prerequisites
+-------------
+
+Make sure these are installed:
+
+1. Node.js
+2. npm
+3. Docker Desktop
+4. VSCode or another code editor
+
+
+First-time setup
+----------------
+
+Run these commands from the project root:
+
+  npm install
+
+Start the PostgreSQL database:
+
+  docker compose up -d
+
+Go into the backend app:
+
+  cd apps/api
+
+Create or check your backend environment file:
+
+  apps/api/.env
+
+It should include:
+
+  DATABASE_URL="postgresql://bodb_user:bodb_password@localhost:5432/bodb_dev?schema=public"
+  OPENAI_API_KEY="your_openai_api_key_here"
+  OPENAI_MODEL="gpt-5.4-mini"
+
+Optional WooCommerce variables for later:
+
+  WOOCOMMERCE_STORE_URL="https://your-store.com"
+  WOOCOMMERCE_CONSUMER_KEY="ck_your_consumer_key_here"
+  WOOCOMMERCE_CONSUMER_SECRET="cs_your_consumer_secret_here"
+
+Run Prisma migration:
+
+  npx prisma migrate dev
+
+Optional: seed sample data:
+
+  npm run seed
+
+Go back to the project root:
+
+  cd ../..
+
+
+Running the app locally
+-----------------------
+
+You need three things running:
+
+1. PostgreSQL database
+2. Backend API
+3. Frontend web app
+
+
+Step 1: Start PostgreSQL
+------------------------
+
+From the project root:
+
+  docker compose up -d
+
+You can check that the database container is running with:
+
+  docker ps
+
+You should see a container named something like:
+
+  bodb-postgres
+
+
+Step 2: Start the backend API
+-----------------------------
+
+From the project root:
+
+  npm run dev:api
+
+The backend should run at:
+
+  http://localhost:4000
+
+You can test the health route in your browser:
+
+  http://localhost:4000/api/health
+
+
+Step 3: Start the frontend
+--------------------------
+
+Open a second terminal.
+
+From the project root:
+
+  npm run dev:web
+
+The frontend should run at:
+
+  http://localhost:5173
+
+Open this in your browser:
+
+  http://localhost:5173
+
+
+Normal daily startup
+--------------------
+
+Most days, you only need this:
+
+Terminal 1:
+
+  docker compose up -d
+  npm run dev:api
+
+Terminal 2:
+
+  npm run dev:web
+
+Then open:
+
+  http://localhost:5173
+
+
+Stopping the app
+----------------
+
+In the backend and frontend terminals:
+
+  Ctrl + C
+
+To stop the database container:
+
+  docker compose down
+
+To stop the database but keep saved data:
+
+  docker compose down
+
+To stop the database and delete all local database data:
+
+  docker compose down -v
+
+Be careful with docker compose down -v because it deletes the local PostgreSQL volume.
+
+
+Useful Prisma commands
+----------------------
+
+Run migrations:
+
+  cd apps/api
+  npx prisma migrate dev
+
+Open Prisma Studio:
+
+  cd apps/api
+  npx prisma studio
+
+Generate Prisma client:
+
+  cd apps/api
+  npx prisma generate
+
+Seed database:
+
+  cd apps/api
+  npm run seed
+
+
+Important localhost URLs
+------------------------
+
+Frontend:
+
+  http://localhost:5173
+
+Backend API:
+
+  http://localhost:4000
+
+Health check:
+
+  http://localhost:4000/api/health
+
+Prisma Studio:
+
+  http://localhost:5555
+
+
+Common problems
+---------------
+
+Problem: Backend cannot connect to database
+
+Possible error:
+
+  P1001: Can't reach database server
+
+Fix:
+
+  docker compose up -d
+
+Then restart the backend:
+
+  npm run dev:api
+
+
+Problem: Environment variable changes are not working
+
+Fix:
+
+Stop the backend with:
+
+  Ctrl + C
+
+Then restart it:
+
+  npm run dev:api
+
+The backend must be restarted after changing apps/api/.env.
+
+
+Problem: OpenAI summary uses rule-based fallback
+
+Check apps/api/.env:
+
+  OPENAI_API_KEY="sk-proj-..."
+  OPENAI_MODEL="gpt-5.4-mini"
+
+Then restart the backend:
+
+  npm run dev:api
+
+In the UI, the generated summary should show something like:
+
+  Generated ... · gpt-5.4-mini
+
+If it shows:
+
+  rule-based-fallback
+
+then the backend did not use the OpenAI API.
+
+
+Problem: Frontend cannot reach backend
+
+Make sure the backend is running at:
+
+  http://localhost:4000
+
+Make sure the Vite frontend proxy is configured in:
+
+  apps/web/vite.config.ts
+
+Expected proxy:
+
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true
+      }
+    }
+  }
+
+
+Problem: npm or node_modules is broken
+
+From the project root, try a clean reinstall.
+
+Windows Command Prompt:
+
+  rmdir /s /q node_modules
+  rmdir /s /q apps\web\node_modules
+  rmdir /s /q apps\api\node_modules
+  del package-lock.json
+  npm install
+
+PowerShell:
+
+  Remove-Item -Recurse -Force node_modules
+  Remove-Item -Recurse -Force apps/web/node_modules
+  Remove-Item -Recurse -Force apps/api/node_modules
+  Remove-Item -Force package-lock.json
+  npm install
+
+
+Security notes
+--------------
+
+Do not commit these files or values to GitHub:
+
+  apps/api/.env
+  OPENAI_API_KEY
+  WOOCOMMERCE_CONSUMER_KEY
+  WOOCOMMERCE_CONSUMER_SECRET
+  DATABASE_URL with real production credentials
+
+The React frontend should never directly contain secret API keys.
+
+Secrets should stay in:
+
+  apps/api/.env
+
+
+Quick command summary
+---------------------
+
+First-time setup:
+
+  npm install
+  docker compose up -d
+  cd apps/api
+  npx prisma migrate dev
+  npm run seed
+  cd ../..
+
+Daily run:
+
+  docker compose up -d
+  npm run dev:api
+
+Second terminal:
+
+  npm run dev:web
+
+Open:
+
+  http://localhost:5173
