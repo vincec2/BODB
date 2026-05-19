@@ -1,5 +1,7 @@
 # bodb — Business Operations Dashboard
 
+Video of current use: https://youtu.be/i_pFFsTL0e8
+
 bodb is a full-stack business operations dashboard for small e-commerce businesses. It helps track products, suppliers, orders, expenses, customer issues, margins, operational alerts, and AI-generated business summaries in one place.
 
 The project is designed as a platform-agnostic operations layer. It can be used manually through forms and CSV imports, with a planned WooCommerce connector for syncing real store data.
